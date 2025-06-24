@@ -1,4 +1,4 @@
-// app.js (with Fixed Day/Night Toggle Button)
+// app.js (Final: Day/Night Toggle Button + Movement Fix)
 
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
@@ -149,7 +149,7 @@ class App {
 
     setupXR() {
         this.renderer.xr.enabled = true;
-        const btn = new VRButton(this.renderer);
+        new VRButton(this.renderer);
 
         const timeoutId = setTimeout(() => {
             this.useGaze = true;
@@ -174,7 +174,6 @@ class App {
         this.ui = new CanvasUI(content, config);
         this.scene.add(this.ui.mesh);
 
-        // Add Day/Night Toggle Button (now in world space)
         this.toggleButton = new THREE.Mesh(
             new THREE.SphereGeometry(0.15, 32, 32),
             new THREE.MeshStandardMaterial({ color: 0xffff00 })
@@ -187,7 +186,10 @@ class App {
 
     buildControllers(parent = this.scene) {
         const controllerModelFactory = new XRControllerModelFactory();
-        const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
+        const geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -1)
+        ]);
         const line = new THREE.Line(geometry);
         line.scale.z = 0;
 
@@ -204,6 +206,64 @@ class App {
             parent.add(grip);
         }
         return controllers;
+    }
+
+    moveDolly(dt) {
+        if (!this.proxy) return;
+
+        const wallLimit = 1.3;
+        const speed = 2;
+        let pos = this.dolly.position.clone();
+        pos.y += 1;
+
+        let dir = new THREE.Vector3();
+        const quaternion = this.dolly.quaternion.clone();
+        this.dolly.quaternion.copy(this.dummyCam.getWorldQuaternion(this.workingQuaternion));
+        this.dolly.getWorldDirection(dir);
+        dir.negate();
+        this.raycaster.set(pos, dir);
+
+        let intersect = this.raycaster.intersectObject(this.proxy);
+        if (!(intersect.length > 0 && intersect[0].distance < wallLimit)) {
+            this.dolly.translateZ(-dt * speed);
+            pos = this.dolly.getWorldPosition(this.origin);
+        }
+
+        dir.set(-1, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
+        this.raycaster.set(pos, dir);
+        intersect = this.raycaster.intersectObject(this.proxy);
+        if (intersect.length > 0 && intersect[0].distance < wallLimit)
+            this.dolly.translateX(wallLimit - intersect[0].distance);
+
+        dir.set(1, 0, 0).applyMatrix4(this.dolly.matrix).normalize();
+        this.raycaster.set(pos, dir);
+        intersect = this.raycaster.intersectObject(this.proxy);
+        if (intersect.length > 0 && intersect[0].distance < wallLimit)
+            this.dolly.translateX(intersect[0].distance - wallLimit);
+
+        dir.set(0, -1, 0);
+        pos.y += 1.5;
+        this.raycaster.set(pos, dir);
+        intersect = this.raycaster.intersectObject(this.proxy);
+        if (intersect.length > 0) this.dolly.position.copy(intersect[0].point);
+
+        this.dolly.quaternion.copy(quaternion);
+    }
+
+    get selectPressed() {
+        return this.controllers?.some(c => c.userData.selectPressed);
+    }
+
+    showInfoboard(name, info, pos) {
+        if (!this.ui) return;
+        this.ui.position.copy(pos).add(this.workingVec3.set(0, 1.3, 0));
+        const camPos = this.dummyCam.getWorldPosition(this.workingVec3);
+        this.ui.updateElement('name', info.name);
+        this.ui.updateElement('info', info.info);
+        this.ui.update();
+        this.ui.lookAt(camPos);
+        this.ui.visible = true;
+        this.boardShown = name;
     }
 
     render() {
@@ -225,7 +285,6 @@ class App {
             }
         }
 
-        // Update floating toggle button in front of user
         if (this.toggleButton && this.camera) {
             const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());
             const cameraWorldDir = this.camera.getWorldDirection(new THREE.Vector3());
@@ -234,7 +293,6 @@ class App {
             this.toggleButton.lookAt(cameraWorldPos);
         }
 
-        // Toggle Button Raycast
         this.controllers?.forEach(controller => {
             if (controller.userData.selectPressed) {
                 const tempMatrix = new THREE.Matrix4().identity().extractRotation(controller.matrixWorld);
