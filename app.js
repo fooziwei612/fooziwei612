@@ -1,4 +1,4 @@
-// app.js (Fixed: Toggle Button now attached to camera to avoid movement block)
+// app.js (Fixed: Toggle Button uses separate layer and raycaster ignores it)
 
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
@@ -49,6 +49,8 @@ class App {
         this.workingVec3 = new THREE.Vector3();
         this.workingQuaternion = new THREE.Quaternion();
         this.raycaster = new THREE.Raycaster();
+        this.raycaster.layers.enableAll();
+        this.raycaster.layers.disable(1); // Ignore layer 1 (toggle button)
 
         this.stats = new Stats();
         container.appendChild(this.stats.dom);
@@ -179,7 +181,11 @@ class App {
             new THREE.MeshStandardMaterial({ color: 0xffff00 })
         );
         this.toggleButton.name = "ToggleButton";
-        this.camera.add(this.toggleButton); // <- ATTACHED TO CAMERA NOW
+        this.toggleButton.layers.set(1); // <- NEW LAYER
+        this.toggleButton.position.set(0.4, -0.3, -1);
+        this.toggleButton.userData.interactive = true;
+        this.toggleButton.callback = () => this.toggleDayNight();
+        this.camera.add(this.toggleButton);
 
         this.renderer.setAnimationLoop(this.render.bind(this));
     }
