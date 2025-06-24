@@ -1,4 +1,4 @@
-// app.js (Fixed: Toggle Button uses separate layer and raycaster ignores it)
+// app.js (Fixed: Toggle Button fallback when HDR fails)
 
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
@@ -79,7 +79,12 @@ class App {
             const envMap = pmremGenerator.fromEquirectangular(texture).texture;
             pmremGenerator.dispose();
             this.scene.environment = envMap;
+            this.scene.background = envMap;
             texture.dispose();
+        }, undefined, err => {
+            console.error('Error loading day HDR:', err);
+            this.scene.environment = null;
+            this.scene.background = new THREE.Color(0x87ceeb);
         });
     }
 
@@ -97,7 +102,12 @@ class App {
             const envMap = pmremGenerator.fromEquirectangular(texture).texture;
             pmremGenerator.dispose();
             this.scene.environment = envMap;
+            this.scene.background = envMap;
             texture.dispose();
+        }, undefined, err => {
+            console.error(`Failed to load HDR at ${hdrPath}:`, err);
+            this.scene.environment = null;
+            this.scene.background = new THREE.Color(this.isDay ? 0x87ceeb : 0x000000);
         });
 
         this.ambientLight.intensity = this.isDay ? 0.8 : 0.2;
