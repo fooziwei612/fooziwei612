@@ -1,3 +1,5 @@
+// app.js (with Day/Night Toggle Button Added)
+
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
@@ -15,7 +17,6 @@ class App {
         document.body.appendChild(container);
 
         this.assetsPath = './assets/';
-
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 500);
         this.camera.position.set(0, 1.6, 0);
 
@@ -28,8 +29,9 @@ class App {
         this.scene = new THREE.Scene();
         this.scene.add(this.dolly);
 
-        this.ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
-        this.scene.add(this.ambient);
+        const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
+        this.scene.add(ambient);
+        this.ambientLight = ambient;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -53,25 +55,16 @@ class App {
 
         this.loadingBar = new LoadingBar();
 
+        this.isDay = true;
         this.loadCollege();
 
         this.immersive = false;
 
-        // Day/Night Toggle
-        this.isDay = true;
-        this.toggleButton = new THREE.Mesh(
-            new THREE.SphereGeometry(0.2, 32, 32),
-            new THREE.MeshStandardMaterial({ color: 0xffff00 })
-        );
-        this.toggleButton.position.set(2, 1.5, -2);
-        this.scene.add(this.toggleButton);
-
-        const self = this;
         fetch('./college.json')
             .then(response => response.json())
             .then(obj => {
-                self.boardShown = '';
-                self.boardData = obj;
+                this.boardShown = '';
+                this.boardData = obj;
             });
     }
 
@@ -80,16 +73,32 @@ class App {
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
         pmremGenerator.compileEquirectangularShader();
 
-        const self = this;
+        loader.load('./assets/hdr/venice_sunset_1k.hdr', texture => {
+            const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+            pmremGenerator.dispose();
+            this.scene.environment = envMap;
+            texture.dispose();
+        });
+    }
 
-        loader.load('./assets/hdr/venice_sunset_1k.hdr', (texture) => {
-            self.dayEnvMap = pmremGenerator.fromEquirectangular(texture).texture;
-            self.scene.environment = self.dayEnvMap;
+    toggleDayNight() {
+        this.isDay = !this.isDay;
+        const hdrPath = this.isDay
+            ? './assets/hdr/venice_sunset_1k.hdr'
+            : './assets/hdr/night_street_01_1k.hdr';
+
+        const hdrLoader = new RGBELoader().setDataType(THREE.UnsignedByteType);
+        const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        pmremGenerator.compileEquirectangularShader();
+
+        hdrLoader.load(hdrPath, texture => {
+            const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+            pmremGenerator.dispose();
+            this.scene.environment = envMap;
+            texture.dispose();
         });
 
-        loader.load('./assets/hdr/night_street_01_1k.hdr', (texture) => {
-            self.nightEnvMap = pmremGenerator.fromEquirectangular(texture).texture;
-        });
+        this.ambientLight.intensity = this.isDay ? 0.8 : 0.2;
     }
 
     resize() {
@@ -104,21 +113,19 @@ class App {
         dracoLoader.setDecoderPath('./libs/three/js/draco/');
         loader.setDRACOLoader(dracoLoader);
 
-        const self = this;
-
-        loader.load('college.glb', function (gltf) {
+        loader.load('college.glb', gltf => {
             const college = gltf.scene.children[0];
-            self.scene.add(college);
+            this.scene.add(college);
 
-            college.traverse(function (child) {
+            college.traverse(child => {
                 if (child.isMesh) {
-                    if (child.name.indexOf("PROXY") != -1) {
+                    if (child.name.includes("PROXY")) {
                         child.material.visible = false;
-                        self.proxy = child;
-                    } else if (child.material.name.indexOf('Glass') != -1) {
+                        this.proxy = child;
+                    } else if (child.material.name.includes('Glass')) {
                         child.material.opacity = 0.1;
                         child.material.transparent = true;
-                    } else if (child.material.name.indexOf("SkyBox") != -1) {
+                    } else if (child.material.name.includes("SkyBox")) {
                         const mat1 = child.material;
                         const mat2 = new THREE.MeshBasicMaterial({ map: mat1.map });
                         child.material = mat2;
@@ -135,31 +142,25 @@ class App {
             obj.position.copy(pos);
             college.add(obj);
 
-            self.loadingBar.visible = false;
-            self.setupXR();
+            this.loadingBar.visible = false;
+            this.setupXR();
         });
     }
 
     setupXR() {
         this.renderer.xr.enabled = true;
         const btn = new VRButton(this.renderer);
-        const self = this;
 
-        const timeoutId = setTimeout(connectionTimeout, 2000);
-
-        function onSelectStart() { this.userData.selectPressed = true; }
-        function onSelectEnd() { this.userData.selectPressed = false; }
-        function onConnected() { clearTimeout(timeoutId); }
-        function connectionTimeout() {
-            self.useGaze = true;
-            self.gazeController = new GazeController(self.scene, self.dummyCam);
-        }
+        const timeoutId = setTimeout(() => {
+            this.useGaze = true;
+            this.gazeController = new GazeController(this.scene, this.dummyCam);
+        }, 2000);
 
         this.controllers = this.buildControllers(this.dolly);
-        this.controllers.forEach((controller) => {
-            controller.addEventListener('selectstart', onSelectStart);
-            controller.addEventListener('selectend', onSelectEnd);
-            controller.addEventListener('connected', onConnected);
+        this.controllers.forEach(controller => {
+            controller.addEventListener('selectstart', () => controller.userData.selectPressed = true);
+            controller.addEventListener('selectend', () => controller.userData.selectPressed = false);
+            controller.addEventListener('connected', () => clearTimeout(timeoutId));
         });
 
         const config = {
@@ -173,15 +174,21 @@ class App {
         this.ui = new CanvasUI(content, config);
         this.scene.add(this.ui.mesh);
 
+        // Add Day/Night Button
+        this.toggleButton = new THREE.Mesh(
+            new THREE.SphereGeometry(0.15, 32, 32),
+            new THREE.MeshStandardMaterial({ color: 0xffff00 })
+        );
+        this.toggleButton.name = "ToggleButton";
+        this.toggleButton.position.set(0, 1.5, -2);
+        this.camera.add(this.toggleButton);
+
         this.renderer.setAnimationLoop(this.render.bind(this));
     }
 
     buildControllers(parent = this.scene) {
         const controllerModelFactory = new XRControllerModelFactory();
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, 0, -1)
-        ]);
+        const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1)]);
         const line = new THREE.Line(geometry);
         line.scale.z = 0;
 
@@ -200,62 +207,37 @@ class App {
         return controllers;
     }
 
-    moveDolly(dt) { /* ... unchanged ... */ }
-
-    get selectPressed() {
-        return this.controllers !== undefined && (this.controllers[0].userData.selectPressed || this.controllers[1].userData.selectPressed);
-    }
-
-    showInfoboard(name, info, pos) { /* ... unchanged ... */ }
-
-    render(timestamp, frame) {
+    render() {
         const dt = this.clock.getDelta();
 
         if (this.renderer.xr.isPresenting) {
-            let moveGaze = false;
-            if (this.useGaze && this.gazeController !== undefined) {
-                this.gazeController.update();
-                moveGaze = (this.gazeController.mode == GazeController.Modes.MOVE);
-            }
-            if (this.selectPressed || moveGaze) {
+            if ((this.useGaze && this.gazeController?.mode === GazeController.Modes.MOVE) || this.selectPressed) {
                 this.moveDolly(dt);
-                if (this.boardData) {
-                    const dollyPos = this.dolly.getWorldPosition(new THREE.Vector3());
-                    let boardFound = false;
-                    Object.entries(this.boardData).forEach(([name, info]) => {
-                        const obj = this.scene.getObjectByName(name);
-                        if (obj !== undefined) {
-                            const pos = obj.getWorldPosition(new THREE.Vector3());
-                            if (dollyPos.distanceTo(pos) < 3) {
-                                boardFound = true;
-                                if (this.boardShown !== name) this.showInfoboard(name, info, pos);
-                            }
-                        }
-                    });
-                    if (!boardFound) {
-                        this.boardShown = "";
-                        this.ui.visible = false;
+                const dollyPos = this.dolly.getWorldPosition(new THREE.Vector3());
+                let boardFound = false;
+                Object.entries(this.boardData || {}).forEach(([name, info]) => {
+                    const obj = this.scene.getObjectByName(name);
+                    if (obj && dollyPos.distanceTo(obj.getWorldPosition(new THREE.Vector3())) < 3) {
+                        boardFound = true;
+                        if (this.boardShown !== name) this.showInfoboard(name, info, obj.position);
                     }
-                }
+                });
+                if (!boardFound && this.ui) this.ui.visible = false;
             }
         }
 
-        // Day/Night Toggle Interaction
-        const toggleIntersect = this.raycaster.intersectObject(this.toggleButton);
-        if (toggleIntersect.length > 0 && this.selectPressed) {
-            if (this.isDay) {
-                this.scene.environment = this.nightEnvMap;
-                this.toggleButton.material.color.set(0x3333ff);
-                this.ambient.intensity = 0.2;
-            } else {
-                this.scene.environment = this.dayEnvMap;
-                this.toggleButton.material.color.set(0xffff00);
-                this.ambient.intensity = 0.8;
+        // Toggle Button Raycast
+        this.controllers?.forEach(controller => {
+            if (controller.userData.selectPressed) {
+                const tempMatrix = new THREE.Matrix4().identity().extractRotation(controller.matrixWorld);
+                this.raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                this.raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+                const intersects = this.raycaster.intersectObject(this.toggleButton);
+                if (intersects.length > 0) this.toggleDayNight();
             }
-            this.isDay = !this.isDay;
-        }
+        });
 
-        if (this.immersive != this.renderer.xr.isPresenting) {
+        if (this.immersive !== this.renderer.xr.isPresenting) {
             this.resize();
             this.immersive = this.renderer.xr.isPresenting;
         }
