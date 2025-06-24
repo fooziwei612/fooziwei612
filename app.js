@@ -1,4 +1,4 @@
-// app.js (with Day/Night Toggle Button Added)
+// app.js (with Fixed Day/Night Toggle Button)
 
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
@@ -174,14 +174,13 @@ class App {
         this.ui = new CanvasUI(content, config);
         this.scene.add(this.ui.mesh);
 
-        // Add Day/Night Button
+        // Add Day/Night Toggle Button (now in world space)
         this.toggleButton = new THREE.Mesh(
             new THREE.SphereGeometry(0.15, 32, 32),
             new THREE.MeshStandardMaterial({ color: 0xffff00 })
         );
         this.toggleButton.name = "ToggleButton";
-        this.toggleButton.position.set(0, 1.5, -2);
-        this.camera.add(this.toggleButton);
+        this.scene.add(this.toggleButton);
 
         this.renderer.setAnimationLoop(this.render.bind(this));
     }
@@ -224,6 +223,15 @@ class App {
                 });
                 if (!boardFound && this.ui) this.ui.visible = false;
             }
+        }
+
+        // Update floating toggle button in front of user
+        if (this.toggleButton && this.camera) {
+            const cameraWorldPos = this.camera.getWorldPosition(new THREE.Vector3());
+            const cameraWorldDir = this.camera.getWorldDirection(new THREE.Vector3());
+            const offset = cameraWorldDir.clone().multiplyScalar(2);
+            this.toggleButton.position.copy(cameraWorldPos).add(offset);
+            this.toggleButton.lookAt(cameraWorldPos);
         }
 
         // Toggle Button Raycast
