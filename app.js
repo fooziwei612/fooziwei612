@@ -35,7 +35,20 @@ class App{
             this.globalAudio.setBuffer(buffer);
             this.globalAudio.setLoop(true);
             this.globalAudio.setVolume(0.5);
-            this.globalAudio.play();
+        });
+
+        // Autoplay fix for user gesture and VR session
+        document.body.addEventListener('click', () => {
+            if (this.globalAudio && !this.globalAudio.isPlaying) {
+                this.globalAudio.play();
+            }
+        });
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.xr.addEventListener('sessionstart', () => {
+            if (this.globalAudio && !this.globalAudio.isPlaying) {
+                this.globalAudio.play();
+            }
         });
 
 		this.scene = new THREE.Scene();
@@ -44,7 +57,6 @@ class App{
 		const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
 		this.scene.add(ambient);
 
-		this.renderer = new THREE.WebGLRenderer({ antialias: true });
 		this.renderer.setPixelRatio( window.devicePixelRatio );
 		this.renderer.setSize( window.innerWidth, window.innerHeight );
 		this.renderer.outputEncoding = THREE.sRGBEncoding;
