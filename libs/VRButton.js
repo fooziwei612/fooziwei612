@@ -116,7 +116,7 @@ class VRButton{
             button.textContent = (currentSession===null) ? 'START VR' : 'END VR';
             button.style.opacity = '1.0';
             button.style.transform = 'scale(1.1)';
-            button.style.background = '#000';
+            button.style.background = '#28a';
 
         };
 
