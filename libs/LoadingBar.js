@@ -16,7 +16,7 @@ class LoadingBar {
 
 		// Create the base of the loading bar
 		const barBase = document.createElement("div");
-		barBase.style.background = '#aaa';
+		barBase.style.background = '#fff';
 		barBase.style.width = '50%';
 		barBase.style.minWidth = '250px';
 		barBase.style.borderRadius = '10px';
