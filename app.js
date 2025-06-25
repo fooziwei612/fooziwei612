@@ -15,7 +15,6 @@ class App {
     document.body.appendChild(container);
 
     this.assetsPath = './assets/';
-
     this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 500);
     this.camera.position.set(0, 1.6, 0);
 
@@ -31,7 +30,7 @@ class App {
     this.scene = new THREE.Scene();
     this.scene.add(this.dolly);
 
-    const ambient = new THREE.HemisphereLight(0xFFFFFF, 0xAAAAAA, 0.8);
+    const ambient = new THREE.HemisphereLight(0xffffff, 0xaaaaaa, 0.8);
     this.scene.add(ambient);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -56,12 +55,16 @@ class App {
 
     this.loadingBar = new LoadingBar();
 
+    this.musicToggle = document.getElementById("music-toggle");
+    if (this.musicToggle) {
+      this.musicToggle.addEventListener("change", this.toggleMusic.bind(this));
+    }
+
     this.loadCollege();
 
     this.immersive = false;
 
     const self = this;
-
     fetch('./college.json')
       .then(response => response.json())
       .then(obj => {
@@ -137,14 +140,26 @@ class App {
   }
 
   loadAmbientSound() {
-    const sound = new THREE.Audio(this.listener);
+    this.sound = new THREE.Audio(this.listener);
     const audioLoader = new THREE.AudioLoader();
+
     audioLoader.load('./assets/sound/ambient.mp3', (buffer) => {
-      sound.setBuffer(buffer);
-      sound.setLoop(true);
-      sound.setVolume(0.5);
-      sound.play();
+      this.sound.setBuffer(buffer);
+      this.sound.setLoop(true);
+      this.sound.setVolume(0.5);
+      if (this.musicToggle && this.musicToggle.checked) {
+        this.sound.play();
+      }
     });
+  }
+
+  toggleMusic() {
+    if (!this.sound) return;
+    if (this.musicToggle.checked) {
+      this.sound.play();
+    } else {
+      this.sound.pause();
+    }
   }
 
   setupXR() {
