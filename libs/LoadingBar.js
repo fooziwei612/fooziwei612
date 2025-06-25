@@ -15,7 +15,7 @@ class LoadingBar {
 
 		// Bar container
 		const barBase = document.createElement("div");
-		barBase.style.background = '#aaa';
+		barBase.style.background = '#FFFFFF';
 		barBase.style.width = '50%';
 		barBase.style.minWidth = '250px';
 		barBase.style.borderRadius = '10px';
@@ -25,7 +25,7 @@ class LoadingBar {
 
 		// Progress bar fill
 		const bar = document.createElement("div");
-		bar.style.background = '#22a';
+		bar.style.background = '#EF4A3E';
 		bar.style.borderRadius = '10px';
 		bar.style.height = '100%';
 		bar.style.width = '0';
