@@ -32,21 +32,26 @@ class App{
         this.globalAudio = new THREE.Audio(this.listener);
         const audioLoader = new THREE.AudioLoader();
         audioLoader.load('./assets/sound/lobby.mp3', (buffer) => {
+            console.log('Audio buffer loaded');
             this.globalAudio.setBuffer(buffer);
             this.globalAudio.setLoop(true);
             this.globalAudio.setVolume(0.5);
+        }, undefined, (err) => {
+            console.error('Error loading audio file:', err);
         });
 
         // Autoplay fix for user gesture and VR session
         document.body.addEventListener('click', () => {
-            if (this.globalAudio && !this.globalAudio.isPlaying) {
+            console.log('User clicked, trying to play audio');
+            if (this.globalAudio && !this.globalAudio.isPlaying && this.globalAudio.buffer) {
                 this.globalAudio.play();
             }
         });
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.xr.addEventListener('sessionstart', () => {
-            if (this.globalAudio && !this.globalAudio.isPlaying) {
+            console.log('XR session started');
+            if (this.globalAudio && !this.globalAudio.isPlaying && this.globalAudio.buffer) {
                 this.globalAudio.play();
             }
         });
@@ -98,7 +103,7 @@ class App{
           pmremGenerator.dispose();
           this.scene.environment = envMap;
         }, undefined, (err)=>{
-            console.error( 'An error occurred setting the environment');
+            console.error( 'An error occurred setting the environment', err );
         });
     }
 
@@ -115,6 +120,7 @@ class App{
         loader.setDRACOLoader( dracoLoader );
 
 		loader.load('college.glb', (gltf) => {
+            console.log('GLTF loaded:', gltf);
             const college = gltf.scene.children[0];
 			this.scene.add(college);
 
@@ -137,11 +143,15 @@ class App{
 
             const door1 = college.getObjectByName("LobbyShop_Door__1_");
             const door2 = college.getObjectByName("LobbyShop_Door__2_");
-            const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
-            const obj = new THREE.Object3D();
-            obj.name = "LobbyShop";
-            obj.position.copy(pos);
-            college.add(obj);
+            if (!door1 || !door2) {
+                console.warn('Doors not found for LobbyShop positioning');
+            } else {
+                const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
+                const obj = new THREE.Object3D();
+                obj.name = "LobbyShop";
+                obj.position.copy(pos);
+                college.add(obj);
+            }
 
             this.loadingBar.visible = false;
 			this.setupXR();
@@ -150,7 +160,7 @@ class App{
 			this.loadingBar.progress = (xhr.loaded / xhr.total);
 		},
 		(error) => {
-			console.log('An error happened');
+			console.error('An error happened during GLTF loading:', error);
 		});
 	}
 
