@@ -116,7 +116,7 @@ class VRButton{
             button.textContent = (currentSession===null) ? 'START VR' : 'END VR';
             button.style.opacity = '1.0';
             button.style.transform = 'scale(1.1)';
-            button.style.background = '#28a';
+            button.style.background = '#000';
 
         };
 
@@ -186,9 +186,9 @@ class VRButton{
         element.style.position = 'absolute';
         element.style.bottom = '20px';
         if (!ignorePadding) element.style.padding = '12px 6px';
-        element.style.border = '1px solid #fff';
-        element.style.borderRadius = '4px';
-        element.style.background = (active) ? '#28a' : '#22a';
+        //element.style.border = '1px solid #fff';
+        element.style.borderRadius = '6px';
+        element.style.background = (active) ? '#000' : '#000';
         element.style.color = '#fff';
         element.style.font = `normal ${fontSize}px sans-serif`;
         element.style.textAlign = 'center';
