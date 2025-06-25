@@ -1,4 +1,3 @@
-
 import * as THREE from './libs/three/three.module.js';
 import { GLTFLoader } from './libs/three/jsm/GLTFLoader.js';
 import { DRACOLoader } from './libs/three/jsm/DRACOLoader.js';
@@ -20,12 +19,15 @@ class App{
 		this.camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 0.01, 500 );
 		this.camera.position.set( 0, 1.6, 0 );
         
-        this.dolly = new THREE.Object3D(  );
+        this.dolly = new THREE.Object3D();
         this.dolly.position.set(0, 0, 10);
         this.dolly.add( this.camera );
         this.dummyCam = new THREE.Object3D();
         this.camera.add( this.dummyCam );
         
+        this.listener = new THREE.AudioListener(); // 🎵 Add audio listener
+        this.camera.add(this.listener);            // 🎵 Attach to camera
+
 		this.scene = new THREE.Scene();
         this.scene.add( this.dolly );
         
@@ -92,66 +94,62 @@ class App{
     }
     
 	loadCollege(){
-        
-		const loader = new GLTFLoader( ).setPath(this.assetsPath);
+		const loader = new GLTFLoader().setPath(this.assetsPath);
         const dracoLoader = new DRACOLoader();
         dracoLoader.setDecoderPath( './libs/three/js/draco/' );
         loader.setDRACOLoader( dracoLoader );
         
         const self = this;
 		
-		// Load a glTF resource
-		loader.load(
-			// resource URL
-			'college.glb',
-			// called when the resource is loaded
-			function ( gltf ) {
-
-                const college = gltf.scene.children[0];
-				self.scene.add( college );
+		loader.load('college.glb', function ( gltf ) {
+            const college = gltf.scene.children[0];
+			self.scene.add( college );
 				
-				college.traverse(function (child) {
-    				if (child.isMesh){
-						if (child.name.indexOf("PROXY")!=-1){
-							child.material.visible = false;
-							self.proxy = child;
-						}else if (child.material.name.indexOf('Glass')!=-1){
-                            child.material.opacity = 0.1;
-                            child.material.transparent = true;
-                        }else if (child.material.name.indexOf("SkyBox")!=-1){
-                            const mat1 = child.material;
-                            const mat2 = new THREE.MeshBasicMaterial({map: mat1.map});
-                            child.material = mat2;
-                            mat1.dispose();
-                        }
-					}
-				});
-                       
-                const door1 = college.getObjectByName("LobbyShop_Door__1_");
-                const door2 = college.getObjectByName("LobbyShop_Door__2_");
-                const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
-                const obj = new THREE.Object3D();
-                obj.name = "LobbyShop";
-                obj.position.copy(pos);
-                college.add( obj );
-                
-                self.loadingBar.visible = false;
-			
-                self.setupXR();
-			},
-			// called while loading is progressing
-			function ( xhr ) {
+			college.traverse(function (child) {
+				if (child.isMesh){
+					if (child.name.indexOf("PROXY")!=-1){
+						child.material.visible = false;
+						self.proxy = child;
+					}else if (child.material.name.indexOf('Glass')!=-1){
+                        child.material.opacity = 0.1;
+                        child.material.transparent = true;
+                    }else if (child.material.name.indexOf("SkyBox")!=-1){
+                        const mat1 = child.material;
+                        const mat2 = new THREE.MeshBasicMaterial({map: mat1.map});
+                        child.material = mat2;
+                        mat1.dispose();
+                    }
+				}
+			});
+                   
+            const door1 = college.getObjectByName("LobbyShop_Door__1_");
+            const door2 = college.getObjectByName("LobbyShop_Door__2_");
+            const pos = door1.position.clone().sub(door2.position).multiplyScalar(0.5).add(door2.position);
+            const obj = new THREE.Object3D();
+            obj.name = "LobbyShop";
+            obj.position.copy(pos);
+            college.add( obj );
 
-				self.loadingBar.progress = (xhr.loaded / xhr.total);
-				
-			},
-			// called when loading has errors
-			function ( error ) {
+            // 🎵 Load ambient lobby sound
+            const audioLoader = new THREE.AudioLoader();
+            self.lobbySound = new THREE.PositionalAudio(self.listener);
+            audioLoader.load('./assets/sound/lobby.mp3', function(buffer) {
+                self.lobbySound.setBuffer(buffer);
+                self.lobbySound.setRefDistance(3);
+                self.lobbySound.setLoop(true);
+                self.lobbySound.setVolume(0.5);
+            });
+            obj.add(self.lobbySound); // 🎵 Attach to LobbyShop
 
-				console.log( 'An error happened' );
-
-			}
-		);
+            self.loadingBar.visible = false;
+            self.setupXR();
+		},
+		function ( xhr ) {
+			self.loadingBar.progress = (xhr.loaded / xhr.total);
+		},
+		function ( error ) {
+			console.log( 'An error happened' );
+		});
 	}
     
     setupXR(){
@@ -164,15 +162,11 @@ class App{
         const timeoutId = setTimeout( connectionTimeout, 2000 );
         
         function onSelectStart( event ) {
-        
             this.userData.selectPressed = true;
-        
         }
 
         function onSelectEnd( event ) {
-        
             this.userData.selectPressed = false;
-        
         }
         
         function onConnected( event ){
@@ -243,16 +237,13 @@ class App{
         pos.y += 1;
         
 		let dir = new THREE.Vector3();
-        //Store original dolly rotation
         const quaternion = this.dolly.quaternion.clone();
-        //Get rotation for movement from the headset pose
         this.dolly.quaternion.copy( this.dummyCam.getWorldQuaternion(this.workingQuaternion) );
 		this.dolly.getWorldDirection(dir);
         dir.negate();
 		this.raycaster.set(pos, dir);
 		
         let blocked = false;
-		
 		let intersect = this.raycaster.intersectObject(this.proxy);
         if (intersect.length>0){
             if (intersect[0].distance < wallLimit) blocked = true;
@@ -263,7 +254,7 @@ class App{
             pos = this.dolly.getWorldPosition( this.origin );
 		}
 		
-        //cast left
+        // cast left
         dir.set(-1,0,0);
         dir.applyMatrix4(this.dolly.matrix);
         dir.normalize();
@@ -274,7 +265,7 @@ class App{
             if (intersect[0].distance<wallLimit) this.dolly.translateX(wallLimit-intersect[0].distance);
         }
 
-        //cast right
+        // cast right
         dir.set(1,0,0);
         dir.applyMatrix4(this.dolly.matrix);
         dir.normalize();
@@ -285,7 +276,7 @@ class App{
             if (intersect[0].distance<wallLimit) this.dolly.translateX(intersect[0].distance-wallLimit);
         }
 
-        //cast down
+        // cast down
         dir.set(0,-1,0);
         pos.y += 1.5;
         this.raycaster.set(pos, dir);
@@ -295,7 +286,6 @@ class App{
             this.dolly.position.copy( intersect[0].point );
         }
 
-        //Restore the original rotation
         this.dolly.quaternion.copy( quaternion );
 	}
 		
@@ -317,6 +307,16 @@ class App{
 
 	render( timestamp, frame ){
         const dt = this.clock.getDelta();
+
+        // 🎵 Proximity logic for ambient sound
+        if (this.lobbySound && this.dolly) {
+            const distance = this.dolly.position.distanceTo(this.lobbySound.getWorldPosition(new THREE.Vector3()));
+            if (distance < 5) {
+                if (!this.lobbySound.isPlaying) this.lobbySound.play();
+            } else {
+                if (this.lobbySound.isPlaying) this.lobbySound.pause();
+            }
+        }
         
         if (this.renderer.xr.isPresenting){
             let moveGaze = false;
@@ -361,5 +361,3 @@ class App{
 }
 
 export { App };
-
-
